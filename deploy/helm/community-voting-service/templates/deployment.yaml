@@ -29,6 +29,10 @@ spec:
               valueFrom: {secretKeyRef: {name: community-voting-database, key: password}}
             - name: RECEIPT_TOKEN_KEY
               valueFrom: {secretKeyRef: {name: community-voting-crypto, key: receipt-token-key}}
+            - name: JWT_SECRET
+              valueFrom: {secretKeyRef: {name: community-voting-auth, key: jwt-secret}}
+            - name: JWT_ISSUER
+              value: {{ .Values.auth.issuer | quote }}
           readinessProbe:
             httpGet: {path: /actuator/health/readiness, port: http}
             initialDelaySeconds: 5
@@ -42,4 +46,3 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
-
