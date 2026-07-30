@@ -26,6 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 class BallotSubmissionConcurrencyTest {
     private static final String TEST_RECEIPT_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    private static final String TEST_JWT_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -33,6 +34,7 @@ class BallotSubmissionConcurrencyTest {
         registry.add("spring.datasource.username", () -> required("TEST_DATABASE_USERNAME"));
         registry.add("spring.datasource.password", () -> required("TEST_DATABASE_PASSWORD"));
         registry.add("voting.receipt-token-key", () -> TEST_RECEIPT_KEY);
+        registry.add("voting.security.jwt-secret", () -> TEST_JWT_SECRET);
     }
 
     private static String required(String name) {
@@ -42,7 +44,23 @@ class BallotSubmissionConcurrencyTest {
     }
 
     @Autowired BallotSubmissionService service;
+    @Autowired EligibilityService eligibility;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void eligibilityIsStablePerAuthenticatedUserAndEvent() {
+        UUID eventId = openEvent();
+
+        var first = eligibility.issue(eventId, "user-123");
+        var retry = eligibility.issue(eventId, "user-123");
+        var anotherUser = eligibility.issue(eventId, "user-456");
+
+        assertThat(retry).isEqualTo(first);
+        assertThat(anotherUser.credentialId()).isNotEqualTo(first.credentialId());
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM verification.eligibility_credentials WHERE event_id=?",
+                Long.class, eventId)).isEqualTo(2);
+    }
 
     @Test
     void exactlyOneOfConcurrentRequestsConsumesTheCredential() throws Exception {

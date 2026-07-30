@@ -6,6 +6,8 @@ image:
   pullPolicy: IfNotPresent
 service:
   port: 80
+auth:
+  issuer: auth-service
 resources:
   requests:
     cpu: 250m
@@ -18,4 +20,3 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 65
-
