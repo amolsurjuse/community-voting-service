@@ -1,0 +1,7 @@
+apiVersion: v2
+name: community-voting-service
+description: Correctness-first PulseVote backend
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+

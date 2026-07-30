@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: community-voting-service
+  labels: {app.kubernetes.io/name: community-voting-service}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: community-voting-service}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: community-voting-service}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: community-voting-database, key: url}}
+            - name: DATABASE_USERNAME
+              valueFrom: {secretKeyRef: {name: community-voting-database, key: username}}
+            - name: DATABASE_PASSWORD
+              valueFrom: {secretKeyRef: {name: community-voting-database, key: password}}
+            - name: RECEIPT_TOKEN_KEY
+              valueFrom: {secretKeyRef: {name: community-voting-crypto, key: receipt-token-key}}
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+
