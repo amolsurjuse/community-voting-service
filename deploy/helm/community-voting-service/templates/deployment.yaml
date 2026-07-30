@@ -11,6 +11,9 @@ spec:
     metadata:
       labels: {app.kubernetes.io/name: community-voting-service}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -22,15 +25,15 @@ spec:
           ports: [{name: http, containerPort: 8080}]
           env:
             - name: DATABASE_URL
-              valueFrom: {secretKeyRef: {name: community-voting-database, key: url}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.database.existingSecret }}, key: {{ .Values.database.urlKey }}}}
             - name: DATABASE_USERNAME
-              valueFrom: {secretKeyRef: {name: community-voting-database, key: username}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.database.existingSecret }}, key: {{ .Values.database.usernameKey }}}}
             - name: DATABASE_PASSWORD
-              valueFrom: {secretKeyRef: {name: community-voting-database, key: password}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.database.existingSecret }}, key: {{ .Values.database.passwordKey }}}}
             - name: RECEIPT_TOKEN_KEY
-              valueFrom: {secretKeyRef: {name: community-voting-crypto, key: receipt-token-key}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.receiptToken.existingSecret }}, key: {{ .Values.receiptToken.secretKey }}}}
             - name: JWT_SECRET
-              valueFrom: {secretKeyRef: {name: community-voting-auth, key: jwt-secret}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.auth.existingSecret }}, key: {{ .Values.auth.secretKey }}}}
             - name: JWT_ISSUER
               value: {{ .Values.auth.issuer | quote }}
           readinessProbe:
@@ -46,3 +49,8 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

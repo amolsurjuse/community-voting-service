@@ -4,10 +4,21 @@ image:
   repository: ghcr.io/example/community-voting-service
   tag: latest
   pullPolicy: IfNotPresent
+imagePullSecrets: []
 service:
-  port: 80
+  port: 8080
 auth:
   issuer: auth-service
+  existingSecret: community-voting-auth
+  secretKey: jwt-secret
+database:
+  existingSecret: community-voting-database
+  urlKey: url
+  usernameKey: username
+  passwordKey: password
+receiptToken:
+  existingSecret: community-voting-crypto
+  secretKey: receipt-token-key
 resources:
   requests:
     cpu: 250m

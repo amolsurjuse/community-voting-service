@@ -1,14 +1,9 @@
-name: Build and deploy
+name: Production delivery
 
 on:
+  push:
+    branches: [develop]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: Deployment environment
-        type: choice
-        options: [dev, prod]
-        default: dev
-        required: true
 
 permissions:
   contents: read
@@ -47,7 +42,10 @@ jobs:
   deploy:
     needs: image
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: prod
+    concurrency:
+      group: community-voting-prod
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -59,14 +57,27 @@ jobs:
           mkdir -p "$HOME/.kube"
           echo "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
+      - name: Configure production registry credentials
+        env:
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.repository_owner }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          test -n "$GHCR_PULL_TOKEN"
+          kubectl -n prod create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username="$GHCR_USERNAME" \
+            --docker-password="$GHCR_PULL_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
       - name: Deploy immutable image
         run: >-
           helm upgrade --install community-voting-service deploy/helm/community-voting-service
-          --namespace community-voting-${{ inputs.environment }} --create-namespace
+          --namespace prod --create-namespace
           --set image.repository=ghcr.io/${{ github.repository_owner }}/community-voting-service
           --set image.tag=${{ github.sha }}
-          --set environment=${{ inputs.environment }}
-          --wait --atomic --timeout 5m
+          --set imagePullSecrets[0].name=ghcr-pull
+          --set environment=prod
+          --set auth.existingSecret=auth-jwt-prod-secret
+          --set auth.secretKey=APP_SECURITY_JWT_SECRET
+          --wait --rollback-on-failure --timeout 5m
       - name: Verify rollout
-        run: kubectl -n community-voting-${{ inputs.environment }} rollout status deployment/community-voting-service --timeout=180s
-
+        run: kubectl -n prod rollout status deployment/community-voting-service --timeout=180s
