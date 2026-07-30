@@ -44,7 +44,23 @@ class BallotSubmissionConcurrencyTest {
     }
 
     @Autowired BallotSubmissionService service;
+    @Autowired EligibilityService eligibility;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void eligibilityIsStablePerAuthenticatedUserAndEvent() {
+        UUID eventId = openEvent();
+
+        var first = eligibility.issue(eventId, "user-123");
+        var retry = eligibility.issue(eventId, "user-123");
+        var anotherUser = eligibility.issue(eventId, "user-456");
+
+        assertThat(retry).isEqualTo(first);
+        assertThat(anotherUser.credentialId()).isNotEqualTo(first.credentialId());
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM verification.eligibility_credentials WHERE event_id=?",
+                Long.class, eventId)).isEqualTo(2);
+    }
 
     @Test
     void exactlyOneOfConcurrentRequestsConsumesTheCredential() throws Exception {
