@@ -3,7 +3,6 @@ name: Backend CI
 on:
   pull_request:
   push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -44,4 +43,3 @@ jobs:
           name: community-voting-service
           path: target/community-voting-service-*.jar
           if-no-files-found: error
-
