@@ -20,28 +20,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 @SpringBootTest
+@TestPropertySource(properties = {
+        "spring.datasource.url=jdbc:h2:mem:ballot-concurrency;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.flyway.locations=classpath:db/migration-h2",
+        "voting.receipt-token-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "voting.security.jwt-secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+})
 class BallotSubmissionConcurrencyTest {
-    private static final String TEST_RECEIPT_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    private static final String TEST_JWT_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-    @DynamicPropertySource
-    static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> required("TEST_DATABASE_URL"));
-        registry.add("spring.datasource.username", () -> required("TEST_DATABASE_USERNAME"));
-        registry.add("spring.datasource.password", () -> required("TEST_DATABASE_PASSWORD"));
-        registry.add("voting.receipt-token-key", () -> TEST_RECEIPT_KEY);
-        registry.add("voting.security.jwt-secret", () -> TEST_JWT_SECRET);
-    }
-
-    private static String required(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required for PostgreSQL tests");
-        return value;
-    }
 
     @Autowired BallotSubmissionService service;
     @Autowired EligibilityService eligibility;
@@ -90,7 +80,8 @@ class BallotSubmissionConcurrencyTest {
         }
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ballot_core.ballots WHERE event_id=?", Long.class, eventId)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM operations.outbox WHERE payload->>'eventId'=?", Long.class, eventId.toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM operations.outbox WHERE aggregate_id IN "
+                + "(SELECT id FROM ballot_core.ballots WHERE event_id=?)", Long.class, eventId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM verification.eligibility_credentials WHERE id=?", String.class, credentialId)).isEqualTo("CONSUMED");
     }
 
