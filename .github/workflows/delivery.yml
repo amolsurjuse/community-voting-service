@@ -49,20 +49,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - name: Validate production deployment configuration
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          if [ -z "$KUBE_CONFIG_DATA" ]; then
+            echo "::error::KUBE_CONFIG_DATA is not configured in the prod environment."
+            exit 1
+          fi
+          if [ -z "$GHCR_PULL_TOKEN" ]; then
+            echo "::error::GHCR_PULL_TOKEN is not configured in the prod environment."
+            exit 1
+          fi
       - name: Configure Kubernetes
         env:
           KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
         run: |
-          test -n "$KUBE_CONFIG_DATA"
           mkdir -p "$HOME/.kube"
-          echo "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
+          if ! printf '%s' "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"; then
+            echo "::error::KUBE_CONFIG_DATA is not valid base64."
+            exit 1
+          fi
           chmod 600 "$HOME/.kube/config"
+          kubectl cluster-info --request-timeout=15s
       - name: Configure production registry credentials
         env:
           GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.repository_owner }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
-          test -n "$GHCR_PULL_TOKEN"
           kubectl -n prod create secret docker-registry ghcr-pull \
             --docker-server=ghcr.io \
             --docker-username="$GHCR_USERNAME" \
