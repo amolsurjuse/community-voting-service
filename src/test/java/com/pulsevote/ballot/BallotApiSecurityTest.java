@@ -23,9 +23,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "spring.datasource.url=${TEST_DATABASE_URL}",
-        "spring.datasource.username=${TEST_DATABASE_USERNAME}",
-        "spring.datasource.password=${TEST_DATABASE_PASSWORD}",
+        "spring.datasource.url=jdbc:h2:mem:ballot-security;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.flyway.locations=classpath:db/migration-h2",
         "voting.receipt-token-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "voting.security.jwt-secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         "voting.security.issuer=auth-service",

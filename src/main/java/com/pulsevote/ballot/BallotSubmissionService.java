@@ -43,9 +43,9 @@ public class BallotSubmissionService {
 
         int consumed = jdbc.update(
                 "UPDATE verification.eligibility_credentials "
-                        + "SET status='CONSUMED', consumed_at=transaction_timestamp() "
+                        + "SET status='CONSUMED', consumed_at=CURRENT_TIMESTAMP "
                         + "WHERE id=? AND event_id=? AND status='ELIGIBLE' "
-                        + "AND expires_at>transaction_timestamp()",
+                        + "AND expires_at>CURRENT_TIMESTAMP",
                 request.credentialId(), eventId);
         if (consumed != 1) throw new BallotExceptions.CredentialUnavailable();
 
@@ -60,13 +60,13 @@ public class BallotSubmissionService {
                 ballotId, eventId, request.credentialId(), idempotencyKey, requestDigest,
                 request.rulesVersion(), request.candidateVersion(), request.ballotType().name(), canonicalPayload, payloadDigest);
 
-        Instant acceptedAt = jdbc.queryForObject("SELECT transaction_timestamp()", java.time.OffsetDateTime.class).toInstant();
+        Instant acceptedAt = jdbc.queryForObject("SELECT CURRENT_TIMESTAMP", java.time.OffsetDateTime.class).toInstant();
         Instant bucket = Instant.ofEpochSecond(acceptedAt.getEpochSecond() - Math.floorMod(acceptedAt.getEpochSecond(), 300));
         jdbc.update("INSERT INTO ballot_core.receipts "
                         + "(id,ballot_id,public_token_hash,accepted_time_bucket,signature) VALUES (?,?,?,?,?)",
                 receiptId, ballotId, sha256(receiptToken.getBytes(StandardCharsets.UTF_8)), Timestamp.from(bucket),
                 sha256((receiptId + ":" + ballotId + ":" + eventId).getBytes(StandardCharsets.UTF_8)));
-        jdbc.update("UPDATE event_domain.events SET first_ballot_at = COALESCE(first_ballot_at, transaction_timestamp()) WHERE id = ?", eventId);
+        jdbc.update("UPDATE event_domain.events SET first_ballot_at = COALESCE(first_ballot_at, CURRENT_TIMESTAMP) WHERE id = ?", eventId);
         jdbc.update("INSERT INTO operations.outbox (id,aggregate_type,aggregate_id,event_type,payload) "
                         + "VALUES (?, 'Ballot', ?, 'BallotAccepted.v1', CAST(? AS jsonb))",
                 UUID.randomUUID(), ballotId,
@@ -92,8 +92,8 @@ public class BallotSubmissionService {
                 "SELECT e.rules_version,e.candidate_version,r.ballot_type,r.max_choices "
                         + "FROM event_domain.events e JOIN event_domain.rules r ON r.event_id=e.id AND r.version=e.rules_version "
                         + "WHERE e.id=? AND e.status='OPEN' "
-                        + "AND transaction_timestamp()>=e.starts_at AND transaction_timestamp()<e.ends_at "
-                        + "FOR KEY SHARE",
+                        + "AND CURRENT_TIMESTAMP>=e.starts_at AND CURRENT_TIMESTAMP<e.ends_at "
+                        + "FOR UPDATE",
                 (rs, row) -> new EventSnapshot(rs.getInt(1), rs.getInt(2),
                         BallotModels.BallotType.valueOf(rs.getString(3)), rs.getInt(4)), eventId);
         return rows.isEmpty() ? null : rows.getFirst();
