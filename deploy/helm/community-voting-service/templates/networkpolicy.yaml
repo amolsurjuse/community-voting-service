@@ -8,8 +8,8 @@ spec:
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: ingress-nginx}
+        - podSelector:
+            matchLabels: {app.kubernetes.io/instance: api-gateway}
       ports: [{protocol: TCP, port: 8080}]
   egress:
     - to:
@@ -18,4 +18,3 @@ spec:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
         - {protocol: TCP, port: 5432}
-
