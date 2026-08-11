@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.pulsevote.ballot.BallotModels.BallotReceiptResponse;
@@ -54,6 +55,14 @@ class BallotApiSecurityTest {
         mvc.perform(request().with(jwt().authorities(
                         new SimpleGrantedAuthority("ROLE_COMMUNITY_VOTING_USER"))))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void organizerApisRejectAnonymousAndUnrelatedRoles() throws Exception {
+        mvc.perform(get("/v1/events")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/v1/events").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/v1/activity")).andExpect(status().isUnauthorized());
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request() {
